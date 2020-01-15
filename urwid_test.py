@@ -2,28 +2,18 @@ import urwid
 from random import choice
 from mazegame import MazeGame
 
-game = MazeGame(41, 41)
-
-lipsum = """
-"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod 
-tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
-quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu 
-fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in 
-culpa qui officia deserunt mollit anim id est laborum."
-"""
+game = MazeGame(10, 10)
 
 max_stored_steps = 15
 max_drawing_points = 30
 
-test_location_text = "Вы всё ещё в лабиринте. "
-
 # обработка нажатий кнопок для движения по лабиринту
 def move(key):
 
-	all_directions, possible_directions = game.relative_directions()
+	# all_directions, possible_directions = game.relative_directions()
 	
-	if key in possible_directions.values():
+	#if key in possible_directions.values():
+	if key in game.mazeclass.choose_way(maze_creation=False, step=1, player_row=game.row, player_col=game.col):
 		game.face = key
 		
 		# убрали метку игрока со старых координат
@@ -54,8 +44,15 @@ def move(key):
 		# нашли выход
 		if game.row == game.mazeclass.height-2 and game.col == game.mazeclass.width-2:
 			#text.set_text("Вы выбрались из лабиринта!")
-			game.mazeclass.print_maze(interpolation="nearest")
-			raise urwid.ExitMainLoop()
+			# не будем запускать matplotlib
+			# game.mazeclass.print_maze(interpolation="nearest")
+			# запустим перевод в текст
+			full_map = game.mazeclass.maze_to_string(None,1,1,game.mazeclass.height,
+															  game.mazeclass.width)
+			text = urwid.Text(full_map+"Лабиринт пройден!", align="center")
+			main_widget.original_widget = urwid.LineBox(urwid.Filler(text, valign="middle"))
+			#input("Лабиринт пройден! Нажмите любую клавишу для завершения.") 
+			#raise urwid.ExitMainLoop()
 
 		# изменяем описание места и меняем доступные кнопки
 		change_buttons_and_descr()
@@ -68,16 +65,25 @@ def exit(key):
 # TODO переделать
 def short_description(possible_directions):
 	text = ""
+	#print(possible_directions)
 	dnums = len(possible_directions) # количество "развилок"
 	if dnums >= 3:
 		text += f"Вы находитесь на перекрёстке."
 	elif dnums <= 1:
 		text += f"Вы находитесь в тупике. Похоже, придётся выбрать другой путь."
+	#'''
 	else:
-		if possible_directions.get("left") or possible_directions.get("right"):
+		# ...
+		if ("up" in possible_directions and \
+		("left" in possible_directions or \
+		"right" in possible_directions)) or \
+		("down" in possible_directions and \
+		("left" in possible_directions or \
+		"right" in possible_directions)):
 			text += f"Здесь поворот."
 		else:
 			text += f"Вы в коридоре."
+	#'''
 	return text
 	
 	
@@ -86,11 +92,13 @@ def change_buttons_and_descr():
 
 
 def create_buttons_and_descr():
-	place, possible_directions, event_text = game.get_moving_buttons_and_descr()
+	#place, possible_directions, event_text = game.get_moving_buttons_and_descr()
+	possible_directions = game.mazeclass.choose_way(maze_creation=False, step=1, player_row=game.row, player_col=game.col)
+	event_text = game.get_event()
 	
 	location_text = urwid.Text(short_description(possible_directions) + "\n" + event_text, align="center")
 	
-	column = urwid.Columns([urwid.BoxAdapter(urwid.Filler(location_text, valign="middle"), 10)]) # можно потом добавить слева инвентарь
+	column = urwid.Columns([urwid.BoxAdapter(urwid.Filler(location_text, valign="middle"), 10)])
 	pile = urwid.LineBox(urwid.Pile([create_minimap(), column]), 
 						tlcorner='', tline='', lline='', trcorner='', blcorner='', rline='│', bline='', brcorner='')
 	
@@ -106,7 +114,7 @@ def create_minimap():
 		minimap = game.show_part_of_map(mode="minimap")
 		last_steps = game.mazeclass.maze_to_string(minimap, row_end=minimap.shape[0], col_end=minimap.shape[1])	
 	
-	return urwid.BoxAdapter(urwid.Filler(urwid.Text(last_steps, align="center"), valign="middle"), 21)
+	return urwid.BoxAdapter(urwid.Filler(urwid.Text(("blueprint", last_steps), align="center"), valign="middle"), 21)
 
 
 # сделать отметку
@@ -186,13 +194,9 @@ def button_power(key):
 						
 	# блокируем нажатия при включенной карте
 	if button_power.overlay == 0:
-		if key == "down":
-			move(key)
-		elif key == "up":
-			move(key)
-		elif key == "left":
-			move(key)			
-		elif key == "right":
+		all_directions = game.relative_directions()[0]
+		if key in ("down", "up","left", "right"):
+			#move(all_directions[key])
 			move(key)
 		
 		elif key == "q": 
@@ -210,7 +214,10 @@ def button_power(key):
 				mark("right")
 		
 		
-
+palette = [
+    ('blueprint', 'white', 'light blue'),
+    ('empty', '', ''),
+    ]
 		
 # первоначальное создание описания
 interface = create_buttons_and_descr()
@@ -219,4 +226,4 @@ filler = urwid.Filler(interface, valign="top")
 box = urwid.LineBox(filler)
 button_power.overlay = 0
 main_widget = urwid.WidgetPlaceholder(box)
-urwid.MainLoop(main_widget, unhandled_input=button_power).run()
+urwid.MainLoop(main_widget, palette, unhandled_input=button_power).run()

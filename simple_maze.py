@@ -20,8 +20,12 @@ class SimpleMaze():
 	
 	
 	def __init__(self, width=15, height=15):
+		# нам нужны нечётные значения ширины и высоты, поэтому:
+		if width % 2 == 0: width += 1
+		if height % 2 == 0: height += 1
 		self.width = width
 		self.height = height
+		
 		self.way: list() = [] # стек точек при постройке лабиринта
 		self.walk: list() = [] # стек точек при поиске пути
 		
@@ -51,17 +55,18 @@ class SimpleMaze():
 		dirs: List[str] = []
 				
 		if maze_creation: 
-			obj = [self.BORDER]
+			obj = (self.BORDER,)
 			row, col = self.way[-1]
 		else:
-			obj = [self.PATH, self.WAY_OUT]
+			obj = (self.PATH, self.WAY_OUT)
 			# для поиска доступных направлений игрока
 			if player_row >= 0 and player_col >= 0:
 				row, col = player_row, player_col
 			else:
 				row, col = self.walk[-1]
 			
-		
+		# col+step(=2) при создании - попадание на KNOT
+		# col+1 при создании - попадание на BORDER
 		if col+step < self.width and maze[row, col+1] in obj:
 			if maze_creation and maze[row, col+2] == self.KNOT:
 				dirs.append("right")
@@ -151,6 +156,7 @@ class SimpleMaze():
 		row: int = start_y
 		col: int = start_x
 		maze = self.maze.copy()
+		self.walk.clear()
 		self.walk.append((row, col))# стек для поиска пути
 		maze[row, col] = self.WAY_OUT
 		
@@ -217,6 +223,6 @@ if __name__ == "__main__":
 	maze = SimpleMaze(21, 21)
 	# original - лабиринт без найденного пути, way - копия лабиринта с найдённым путём
 	# print(maze.maze)
-	#maze.print_maze(mode="way", interpolation="quadric", size_x=5, size_y=5)
+	# maze.print_maze(mode="way", interpolation="quadric", size_x=5, size_y=5)
 	print(maze.maze_to_string(None,1,1,20,20))
 	

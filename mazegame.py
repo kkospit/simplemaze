@@ -2,7 +2,7 @@ from random import choice, sample, randint
 from typing import List, Dict
 import numpy as np
 from simple_maze import SimpleMaze
-
+from math import sqrt
 class MazeGame():
 	
 	
@@ -30,7 +30,7 @@ class MazeGame():
 		self.last_steps = [(self.row, self.col)]
 		
 		# бумага для черчения пути
-		self.sheets = [] # попробуем листы разделять / #{"sheet_1":[], "sheet_2":[], "sheet_3":[], "sheet_4":[], "sheet_5":[], "sheet_6":[]}
+		self.sheets = [] 
 		self.has_sheet = 2 
 		self.sheet_limit = 30
 		self.current_sheet = []
@@ -59,6 +59,7 @@ class MazeGame():
 		all_directions: Dict[str, str] = {} # направление относительно игрока: направление в лабиринте
 		
 		for idx, d in enumerate(["up", "down", "left", "right"]):
+			'''
 			if self.face == "down":
 				if d == "left": all_directions["right"] = d
 				if d == "right": all_directions["left"] = d
@@ -79,11 +80,32 @@ class MazeGame():
 				if d == "right": all_directions["forward"] = d
 				if d == "up": all_directions["left"] = d
 				if d == "down": all_directions["right"] = d
+			'''	
+			if self.face == "down":
+				if d == "left": all_directions[d] = "right"
+				if d == "right": all_directions[d] = "left"
+				if d == "up": all_directions[d] = "down"
+				if d == "down": all_directions[d] = "up"
+			elif self.face == "up":
+				if d == "up": all_directions[d] = "up"
+				if d == "down": all_directions[d] = "down"
+				if d == "left": all_directions[d] = "left"
+				if d == "right": all_directions[d] = "right"
+			elif self.face == "left":
+				if d == "left": all_directions[d] = "down"
+				if d == "right": all_directions[d] = "up"
+				if d == "up": all_directions[d] = "left"
+				if d == "down": all_directions[d] = "right"
+			elif self.face == "right":
+				if d == "left": all_directions[d] = "up"
+				if d == "right": all_directions[d] = "down"
+				if d == "up": all_directions[d] = "right"
+				if d == "down": all_directions[d] = "left"
 		
 		possible_directions = {k:v for k, v in all_directions.items() if v in directions}
 		return all_directions, possible_directions
 
-		
+	'''	
 	# описание доступных с этого места действий
 	def place_buttons(self, all_directions, possible_directions) -> dict:
 		# проверяем _все_ направления, чтобы узнать, что вокруг игрока	
@@ -107,7 +129,7 @@ class MazeGame():
 				place[relative_d] = (f"Справа: {obj}", choice(("Повернуть направо", "Свернуть направо")), obj)
 		
 		return place
-	
+	'''
 	
 	# нарисовать/зачеркнуть стрелку по направлению движения
 	def mark(self, key):
@@ -122,11 +144,11 @@ class MazeGame():
 		
 		if (self.row, self.col) not in self.markers:
 			self.markers[(self.row, self.col)] = {"up":"", "down":"", "left":"", "right":""}
-		self.markers[(self.row, self.col)][key] = arrow[1] if self.markers[(self.row, self.col)][key] else arrow[0]
+		self.markers[(self.row, self.col)][key] = arrow[1] if self.markers[(self.row, self.col)].get(key) == arrow[0] else arrow[0]
 		self.chalk -= 3
 		
 	# описание событий
-	def get_event(self, all_directions):
+	def get_event(self):
 		# если нашли стрелку
 		if self.markers.get((self.row, self.col)):
 			arrows = "".join(self.markers[(self.row, self.col)].values())	
@@ -156,19 +178,16 @@ class MazeGame():
 				self.event_text["sheet"] = "Осталась треть листа.\n"
 			elif sheet_lim == 5:
 				self.event_text["sheet"] = "Место на листе скоро закончится.\n"
-			#elif sheet_lim == 0:
-			#	self.event_text["sheet"] = "Лист закончился!.\n"
 		else:
 			self.event_text["sheet"] = ""
 		
-		if self.chalk > 70:
+		if self.chalk > 20:
 			self.event_text["chalk"] = "У вас есть мел.\n"
-		elif 0 < self.chalk < 20:
+		elif 0 < self.chalk <= 20:
 			self.event_text["chalk"] = "Мела почти не осталось...\n"
-		elif self.chalk == 0:
+		elif self.chalk <= 0:
 			self.event_text["chalk"] = "у вас нет мела.\n"
 			
-		
 		if (self.row, self.col) in self.map_points:
 			self.map_parts.append(self.init_map_parts())
 			self.map_points.pop(self.map_points.index((self.row, self.col)))
@@ -223,8 +242,10 @@ class MazeGame():
 		rand_col = randint(0, self.mazeclass.width-5)
 		return (rand_row, # start row
 				rand_col, # start col
-				rand_row+choice((5,10)), # end row
-				rand_col+choice((5,10))) # end col
+				#rand_row+choice((5,10)), # end row
+				#rand_col+choice((5,10))) # end col
+				rand_row+int(sqrt(self.mazeclass.height)), # end row
+				rand_col+int(sqrt(self.mazeclass.width)) )# end col
 	
 	
 	# покажем кусочки карты
@@ -266,7 +287,18 @@ class MazeGame():
 							if temp_col_start > limit: temp_col_start = limit
 							temp[temp_row_start, temp_col_start] = c
 					#'''
+					# experimental
+					'''
+					if self.face == "down":
+						temp = np.rot90(temp, 2)					
+					elif self.face == "left":
+						temp = np.rot90(temp, -1)
+					elif self.face == "right":
+						temp = np.rot90(temp, 1)
+					'''
 					zeros = temp
+					
+					
 				elif mode == "copybook": 
 				
 					copybook = []
@@ -290,19 +322,11 @@ class MazeGame():
 						zeros = []
 					
 			return zeros
-			
-		
-	def get_moving_buttons_and_descr(self): # для urwid
-		
-		all_directions, possible_directions  = self.relative_directions()
-		place = self.place_buttons(all_directions, possible_directions)
-		event_text = self.get_event(all_directions)
-				
-		return place, {k:p for k, p in place.items() if k in possible_directions}, event_text
-
+	
 
 if __name__ == "__main__":
-	
+	pass
+	'''
 	##TODO создать отдельную функцию
 	game = MazeGame(17, 17)
 	#game.make_step()
@@ -364,3 +388,4 @@ if __name__ == "__main__":
 	#print(current_face, text, game.face)
 	print(text[0], ", ".join(text[1:]))
 	game.mazeclass.print_maze(mode="way", interpolation="nearest", size_x=10, size_y=10)
+	'''
