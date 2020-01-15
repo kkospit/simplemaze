@@ -1,11 +1,11 @@
 import urwid
-from random import choice
 from mazegame import MazeGame
-
-game = MazeGame(10, 10)
+# TODO сделать меню с заданием параметров
+game = MazeGame(15, 15)
 
 max_stored_steps = 15
 max_drawing_points = 30
+game_over = False
 
 # обработка нажатий кнопок для движения по лабиринту
 def move(key):
@@ -13,17 +13,18 @@ def move(key):
 	# all_directions, possible_directions = game.relative_directions()
 	
 	#if key in possible_directions.values():
-	if key in game.mazeclass.choose_way(maze_creation=False, step=1, player_row=game.row, player_col=game.col):
+	if key in game.mazeclass.choose_way(mode="default", step=1):
 		game.face = key
 		
 		# убрали метку игрока со старых координат
 		game.mazeclass.maze[game.row, game.col] = game.mazeclass.PATH 
 		# использую ту же функцию, которой "разрушал стены" и искал выход, 
 		# только не передаю список посещённых точек
-		row, col = game.mazeclass.carve(direction=key, step=1, player_row=game.row, player_col=game.col)
+		row, col = game.mazeclass.carve(direction=key, step=1)
 		game.mazeclass.maze[row, col] = game.mazeclass.PLAYER # теперь здесь метка игрока
+		game.mazeclass.player_pos = (row, col) # для choose_way
 		game.row, game.col = row, col
-		
+			
 		# миникарта
 		# добавим _новую_ точку в список для миникарты
 		if (row, col) not in game.last_steps:
@@ -43,6 +44,9 @@ def move(key):
 				
 		# нашли выход
 		if game.row == game.mazeclass.height-2 and game.col == game.mazeclass.width-2:
+			global game_over
+			game_over = True
+
 			#text.set_text("Вы выбрались из лабиринта!")
 			# не будем запускать matplotlib
 			# game.mazeclass.print_maze(interpolation="nearest")
@@ -93,7 +97,7 @@ def change_buttons_and_descr():
 
 def create_buttons_and_descr():
 	#place, possible_directions, event_text = game.get_moving_buttons_and_descr()
-	possible_directions = game.mazeclass.choose_way(maze_creation=False, step=1, player_row=game.row, player_col=game.col)
+	possible_directions = game.mazeclass.choose_way(mode="default", step=1)
 	event_text = game.get_event()
 	
 	location_text = urwid.Text(short_description(possible_directions) + "\n" + event_text, align="center")
@@ -127,91 +131,106 @@ def button_power(key):
 	if key == "esc":
 		raise urwid.ExitMainLoop()
 	
-	elif key in ["m","M", "ь", "Ь"]:
+	if not game_over:	
+		if key in ["m","M", "ь", "Ь"]:
 
-		if button_power.overlay == 0:
-			# нарисуем карту
-			_map = urwid.Text(game.mazeclass.maze_to_string(maze=game.show_part_of_map(), 
-															row_start=1, 
-															col_start=1, 
-															row_end=(game.mazeclass.height+5), 
-															col_end=(game.mazeclass.width*2+5)),
-															align='center', 
-															wrap='space', 
-															layout=None)
-			
-			main_widget.original_widget = urwid.Overlay(urwid.LineBox(urwid.Filler(_map)), 
-														box, 
-														align="center", 
-														width=(game.mazeclass.width*2+5), 
-														height=(game.mazeclass.height+5), 
-														valign="middle")
-			button_power.overlay = 1
-		else:
-			# из оверлея берём нижний, который у нас основной	
-			main_widget.original_widget = main_widget.original_widget.contents[0][0]
-			button_power.overlay = 0
-	
-	# TODO зарисованные куски отображаются рядом друг с другом, попробовать через Grid, допустим, на шесть ячеек
-	# grid не подойдёт, лучше ListBox, в идеале бы переписать, чтобы прокручивался по горизонтали
-	elif key in ["c", "C", "с", "С"]:
-		_copybook = game.show_part_of_map(mode="copybook")
-		if len(_copybook)>0:
-			body = []
-			for sheet in _copybook:
-				body.append(urwid.Text(game.mazeclass.maze_to_string(maze=sheet, 
-																	row_start=1, 
-																	col_start=1, 
-																	row_end=31, 
-																	col_end=31), 
-																	align='center', 
-																	wrap='space', 
-																	layout=None))
-				
 			if button_power.overlay == 0:
-				main_widget.original_widget = urwid.Overlay(urwid.LineBox(
-																urwid.ListBox([*body])),
-																box, 
-																align="center", 
-																width=62,#(game.mazeclass.width*2+5), 
-																height=31,#(game.mazeclass.height+5), 
-																valign="middle")
+				# нарисуем карту
+				_map = urwid.Text(game.mazeclass.maze_to_string(maze=game.show_part_of_map(), 
+																row_start=1, 
+																col_start=1, 
+																row_end=(game.mazeclass.height+5), 
+																col_end=(game.mazeclass.width*2+5)),
+																align='center', 
+																wrap='space', 
+																layout=None)
+				
+				main_widget.original_widget = urwid.Overlay(urwid.LineBox(urwid.Filler(_map)), 
+															box, 
+															align="center", 
+															width=(game.mazeclass.width*2+5), 
+															height=(game.mazeclass.height+5), 
+															valign="middle")
 				button_power.overlay = 1
-				
-				#меняем фокус на последний зарисованный участок лабиринта
-				#оверлей с верхним виджетом - LineBox       # виджет внутри LineBox - ListBox
-				main_widget.original_widget.contents[1][0].original_widget.change_focus((20,20),
-																						len(_copybook)-1, 
-																						offset_inset=0, 
-																						coming_from=None, 
-																						cursor_coords=None, 
-																						snap_rows=None)
-				
 			else:
 				# из оверлея берём нижний, который у нас основной	
 				main_widget.original_widget = main_widget.original_widget.contents[0][0]
 				button_power.overlay = 0
-						
-	# блокируем нажатия при включенной карте
-	if button_power.overlay == 0:
-		all_directions = game.relative_directions()[0]
-		if key in ("down", "up","left", "right"):
-			#move(all_directions[key])
-			move(key)
 		
-		elif key == "q": 
-			if game.has_sheet > 0:
-				game.use_sheet = True
-		
-		if game.chalk > 0:
-			if key == "ctrl up":
-				mark("up")
-			elif key == "ctrl down":
-				mark("down")
-			elif key == "ctrl left":
-				mark("left")
-			elif key == "ctrl right":
-				mark("right")
+		# TODO зарисованные куски отображаются рядом друг с другом, попробовать через Grid, допустим, на шесть ячеек
+		# grid не подойдёт, лучше ListBox, в идеале бы переписать, чтобы прокручивался по горизонтали
+		elif key in ["c", "C", "с", "С"]:
+			_copybook = game.show_part_of_map(mode="copybook")
+			if len(_copybook)>0:
+				body = []
+				for sheet in _copybook:
+					body.append(urwid.Text(game.mazeclass.maze_to_string(maze=sheet, 
+																		row_start=1, 
+																		col_start=1, 
+																		row_end=31, 
+																		col_end=31), 
+																		align='center', 
+																		wrap='space', 
+																		layout=None))
+					
+				if button_power.overlay == 0:
+					main_widget.original_widget = urwid.Overlay(urwid.LineBox(
+																	urwid.ListBox([*body])),
+																	box, 
+																	align="center", 
+																	width=62,#(game.mazeclass.width*2+5), 
+																	height=31,#(game.mazeclass.height+5), 
+																	valign="middle")
+					button_power.overlay = 1
+					
+					#меняем фокус на последний зарисованный участок лабиринта
+					#оверлей с верхним виджетом - LineBox       # виджет внутри LineBox - ListBox
+					main_widget.original_widget.contents[1][0].original_widget.change_focus((20,20),
+																							len(_copybook)-1, 
+																							offset_inset=0, 
+																							coming_from=None, 
+																							cursor_coords=None, 
+																							snap_rows=None)
+					
+				else:
+					# из оверлея берём нижний, который у нас основной	
+					main_widget.original_widget = main_widget.original_widget.contents[0][0]
+					button_power.overlay = 0
+							
+		# блокируем нажатия при включенной карте
+		if button_power.overlay == 0:
+			#all_directions = game.relative_directions()[0]
+			if key in ("down", "up","left", "right"):
+				#move(all_directions[key])
+				move(key)
+			
+			elif key == "q": 
+				if game.has_sheet > 0:
+					game.use_sheet = True
+			
+			# test	
+			'''
+			elif key == "f":
+				import numpy as np
+				
+				if game.mazeclass.WAY_OUT in game.maze:
+					for r, c in game.mazeclass.walk:
+						game.maze[r, c] = game.mazeclass.PATH
+					
+				game.mazeclass.find_way(start_x=game.col, start_y=game.row)
+				for r, c in game.mazeclass.walk:
+					game.maze[r, c] = game.mazeclass.WAY_OUT
+			'''
+			
+			if game.chalk > 0:
+				if key == "ctrl up":
+					mark("up")
+				elif key == "ctrl down":
+					mark("down")
+				elif key == "ctrl left":
+					mark("left")
+				elif key == "ctrl right":
+					mark("right")
 		
 		
 palette = [

@@ -16,10 +16,10 @@ class SimpleMaze():
 	PLAYER = 8
 	EXIT = 30
 	
-	__slots__ = ["width", "height", "way", "walk", "maze"]
+	__slots__ = ["width", "height", "way", "walk", "maze", "player_pos"]
 	
 	
-	def __init__(self, width=15, height=15):
+	def __init__(self, height=15, width=15):
 		# нам нужны нечётные значения ширины и высоты, поэтому:
 		if width % 2 == 0: width += 1
 		if height % 2 == 0: height += 1
@@ -30,6 +30,8 @@ class SimpleMaze():
 		self.walk: list() = [] # стек точек при поиске пути
 		
 		self.maze = self.create_maze() # готовый лабиринт
+		# буду сюда записывать координаты игрока, чтобы не передавать кучу параметров
+		self.player_pos = (1,1)
 			
 	# заготовка лабиринта
 	def create_grid(self) -> np.ndarray:
@@ -48,60 +50,59 @@ class SimpleMaze():
 	# obj - значение, по которому можно прокладывать путь. 
 	# BORDER - при создании лабиринта, как бы разрушаются стены для создания пути
 	# PATH - при поиске пути, то есть пространство между стенами, по которому можно "идти"
-	def choose_way(self, maze=None, maze_creation=True, step=2, player_row=-1, player_col=-1) -> list():
+	def choose_way(self, maze=None, mode="creation", step=2) -> list():
 		if type(maze) != np.ndarray:
 			maze = self.maze
-		
+
 		dirs: List[str] = []
 				
-		if maze_creation: 
+		if mode == "creation": 
 			obj = (self.BORDER,)
 			row, col = self.way[-1]
+		elif mode == "default":
+			obj = (self.PATH, self.WAY_OUT) 
+			row, col = self.player_pos
+		elif mode == "search":
+			obj = (self.PATH, self.PLAYER) 
+			row, col = self.walk[-1]
 		else:
-			obj = (self.PATH, self.WAY_OUT)
-			# для поиска доступных направлений игрока
-			if player_row >= 0 and player_col >= 0:
-				row, col = player_row, player_col
-			else:
-				row, col = self.walk[-1]
+			print('Выберите режим: "default", "creation", "search"')
 			
 		# col+step(=2) при создании - попадание на KNOT
 		# col+1 при создании - попадание на BORDER
 		if col+step < self.width and maze[row, col+1] in obj:
-			if maze_creation and maze[row, col+2] == self.KNOT:
+			if mode == "creation" and maze[row, col+2] == self.KNOT:
 				dirs.append("right")
-			elif maze_creation == False:
+			#elif maze_creation == False:
+			elif mode != "creation":
 				dirs.append("right")
 		
 		if col-step >= 0 and maze[row, col-1] in obj:
-			if maze_creation and maze[row, col-2] == self.KNOT:
+			if  mode == "creation" and maze[row, col-2] == self.KNOT:
 				dirs.append("left")
-			elif maze_creation == False:
+			elif mode != "creation":
 				dirs.append("left")
 		
 		if row+step < self.height and maze[row+1, col] in obj:
-			if maze_creation and maze[row+2, col] == self.KNOT:
+			if  mode == "creation" and maze[row+2, col] == self.KNOT:
 				dirs.append("down")
-			elif maze_creation == False:
+			elif mode != "creation":
 				dirs.append("down")
 		
 		if row-step >= 0 and maze[row-1, col] in obj:
-			if maze_creation and maze[row-2, col] == self.KNOT:
+			if  mode == "creation" and maze[row-2, col] == self.KNOT:
 				dirs.append("up")
-			elif maze_creation == False:
+			elif mode != "creation":
 				dirs.append("up")
-		
 		return dirs
 		
 	# добавляет следующую точку в стек, и возвращает координаты "разрушенной" точки стены
 	# так же используется для перемещения игрока
-	def carve(self, direction, mode="none", step=2, player_row=-1, player_col=-1) -> (int, int):
+	def carve(self, direction, mode="default", step=2) -> (int, int):
 		
 		if mode == "creation": row, col = self.way[-1]
-		if mode == "search": row, col = self.walk[-1]
-		
-		if player_row >= 0 and player_col >= 0:
-			row, col = player_row, player_col
+		elif mode == "search": row, col = self.walk[-1]
+		elif mode == "default": row, col = self.player_pos
 		
 		if direction == "up":
 			if mode == "creation": self.way.append((row-step, col))	
@@ -119,7 +120,6 @@ class SimpleMaze():
 			if mode == "creation": self.way.append((row, col-step))
 			if mode == "search": self.walk.append((row, col-step))
 			col -= 1
-		
 		return row, col	
 
 
@@ -138,7 +138,7 @@ class SimpleMaze():
 		while True:
 			if not self.way:
 				break
-			directions = self.choose_way(maze = maze)
+			directions = self.choose_way(maze = maze, mode="creation")
 			if not directions:
 				self.way.pop(-1)
 				continue
@@ -152,11 +152,12 @@ class SimpleMaze():
 		
 		
 	# решить лабиринт	
-	def find_way(self, start_y, start_x, returned=False): # будет ли возвращать массив-лабиринт с найденным путём
+	def find_way(self, start_y=1, start_x=1, returned=False): # будет ли возвращать массив-лабиринт с найденным путём
 		row: int = start_y
 		col: int = start_x
 		maze = self.maze.copy()
-		self.walk.clear()
+		
+		self.walk.clear()		
 		self.walk.append((row, col))# стек для поиска пути
 		maze[row, col] = self.WAY_OUT
 		
@@ -164,7 +165,7 @@ class SimpleMaze():
 			if not self.walk or (self.walk[-1][0] == self.height-2 and self.walk[-1][1] == self.width-2):
 				break
 			
-			directions = self.choose_way(maze, maze_creation=False, step=1)
+			directions = self.choose_way(maze, mode="search", step=1)
 			if not directions:
 				maze[self.walk[-1][0], self.walk[-1][1]] = self.BAD_WAY
 				self.walk.pop(-1)
@@ -176,7 +177,15 @@ class SimpleMaze():
 		
 		if returned:
 			return maze
-
+	
+	
+	# можно сделать несколько комнат, просто заменим определённую область на PATH
+	def make_rooms(self, nums=1):
+		for _ in range(nums):
+			start_row = randint(1,self.height-4)
+			start_col = randint(1,self.width-4)
+			self.maze[start_row:start_row+3, start_col:start_col+3] = np.full((3,3), self.PATH)
+		
 		
 	# вывести массив numpy(лабиринт) в виде картинки, используя matplotlib	
 	def print_maze(self, mode="original", interpolation="nearest", size_x=5, size_y=5):	
@@ -204,9 +213,9 @@ class SimpleMaze():
 		if type(maze) != np.ndarray:
 			maze = self.maze
 	
-		maze_table = f"{self.BORDER}{self.PATH}{self.PLAYER}{self.HIDE}"
-		#maze_string = "\u2588\u2591\u2727"
-		maze_string = "\u2591\u2588\u25C9\u25E6"
+		maze_table = f"{self.BORDER}{self.PATH}{self.PLAYER}{self.HIDE}{self.WAY_OUT}{self.BAD_WAY}"
+		maze_string = "\u2591\u2588\u25C9\u25E6\u272F!" # black path
+		#maze_string = "\u2588\u2591\u25C9\u25E6" # white path
 		table = str.maketrans(maze_table, maze_string)
 
 		part = maze[min(row_start, row_end)-1:max(row_start, row_end)+2, min(col_start, col_end)-1:max(col_start, col_end)+2]
@@ -220,9 +229,10 @@ class SimpleMaze():
 		return text
 		
 if __name__ == "__main__":
-	maze = SimpleMaze(21, 21)
+	maze = SimpleMaze(19, 19)
+	#maze.make_rooms(4)
+
 	# original - лабиринт без найденного пути, way - копия лабиринта с найдённым путём
-	# print(maze.maze)
-	# maze.print_maze(mode="way", interpolation="quadric", size_x=5, size_y=5)
-	print(maze.maze_to_string(None,1,1,20,20))
-	
+	#print(maze.maze, maze.way)
+	#maze.print_maze(mode="way", interpolation="nearest", size_x=5, size_y=5)
+	print(maze.maze_to_string(maze.find_way(returned=True),1,1,47,41))

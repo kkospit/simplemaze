@@ -16,10 +16,13 @@ class MazeGame():
 		self.row = 1
 		self.col = 1
 		
+		largest_dim = max(self.mazeclass.height, self.mazeclass.width)
+		
 		self.maze = self.mazeclass.maze
+		self.mazeclass.make_rooms(int(largest_dim/10)) # комнаты, просто уберём стены в области
 		self.maze[self.row, self.col] = self.mazeclass.PLAYER
 		# разворачиваем игрока лицом в коридор
-		possible = self.mazeclass.choose_way(maze_creation=False, step=1, player_row=self.row, player_col=self.col)
+		possible = self.mazeclass.choose_way(mode="default", step=1)
 		self.face = choice(possible) # face - куда смотрит игрок относительно лабиринта, начало координат внизу
 		
 		# на стенах лабиринта можно оставлять пометки в виде стрелок 
@@ -46,91 +49,11 @@ class MazeGame():
 		
 		# раскидаем места с частями карты
 		free_points = tuple((map(tuple, np.argwhere(self.maze==self.mazeclass.PATH).tolist())))
-		self.map_points = sample(free_points, int(max(self.mazeclass.height, self.mazeclass.width)/2))		
-		self.chalk_points = sample(free_points, int(max(self.mazeclass.height, self.mazeclass.width)/2))		
-		self.sheets_points = sample(free_points, int(max(self.mazeclass.height, self.mazeclass.width)/4))		
+		self.map_points = sample(free_points, int(largest_dim/2))		
+		self.chalk_points = sample(free_points, int(largest_dim/2))		
+		self.sheets_points = sample(free_points, int(largest_dim/4))		
 		
-	# переводит направления в лабиринте в относительные направления для игрока
-	def relative_directions(self):
-		# доступные пути
-		maze = self.mazeclass.maze
-		directions = self.mazeclass.choose_way(maze_creation=False, step=1, player_row=self.row, player_col=self.col)
-		# все направления
-		all_directions: Dict[str, str] = {} # направление относительно игрока: направление в лабиринте
 		
-		for idx, d in enumerate(["up", "down", "left", "right"]):
-			'''
-			if self.face == "down":
-				if d == "left": all_directions["right"] = d
-				if d == "right": all_directions["left"] = d
-				if d == "up": all_directions["back"] = d
-				if d == "down": all_directions["forward"] = d
-			elif self.face == "up":
-				if d == "up": all_directions["forward"] = d
-				if d == "down": all_directions["back"] = d
-				if d == "left": all_directions["left"] = d
-				if d == "right": all_directions["right"] = d
-			elif self.face == "left":
-				if d == "left": all_directions["forward"] = d
-				if d == "right": all_directions["back"] = d
-				if d == "up": all_directions["right"] = d
-				if d == "down": all_directions["left"] = d
-			elif self.face == "right":
-				if d == "left": all_directions["back"] = d
-				if d == "right": all_directions["forward"] = d
-				if d == "up": all_directions["left"] = d
-				if d == "down": all_directions["right"] = d
-			'''	
-			if self.face == "down":
-				if d == "left": all_directions[d] = "right"
-				if d == "right": all_directions[d] = "left"
-				if d == "up": all_directions[d] = "down"
-				if d == "down": all_directions[d] = "up"
-			elif self.face == "up":
-				if d == "up": all_directions[d] = "up"
-				if d == "down": all_directions[d] = "down"
-				if d == "left": all_directions[d] = "left"
-				if d == "right": all_directions[d] = "right"
-			elif self.face == "left":
-				if d == "left": all_directions[d] = "down"
-				if d == "right": all_directions[d] = "up"
-				if d == "up": all_directions[d] = "left"
-				if d == "down": all_directions[d] = "right"
-			elif self.face == "right":
-				if d == "left": all_directions[d] = "up"
-				if d == "right": all_directions[d] = "down"
-				if d == "up": all_directions[d] = "right"
-				if d == "down": all_directions[d] = "left"
-		
-		possible_directions = {k:v for k, v in all_directions.items() if v in directions}
-		return all_directions, possible_directions
-
-	'''	
-	# описание доступных с этого места действий
-	def place_buttons(self, all_directions, possible_directions) -> dict:
-		# проверяем _все_ направления, чтобы узнать, что вокруг игрока	
-		place: Dict(str, tuple) = {"forward": "", "back": "", "left": "", "right": ""}
-		obj: str = ""
-		for relative_d, global_d in all_directions.items(): 
-
-			row, col = self.mazeclass.carve(direction=global_d, step=1, player_row=self.row, player_col=self.col)
-			
-			if self.mazeclass.maze[row, col] == self.mazeclass.BORDER: obj = "стена"
-			if self.mazeclass.maze[row, col] == self.mazeclass.PATH: obj = "коридор"
-			if self.mazeclass.maze[row, col] == self.mazeclass.EXIT: obj = "выход"
-
-			if relative_d == "forward":
-				place[relative_d] = (f"Впереди: {obj}", choice(("Идти", "Пойти вперёд", "Двигаться дальше")), obj)
-			elif relative_d == "back":
-				place[relative_d] = (f"Позади: {obj}", choice(("Повернуть назад", "Двинуться в обратном направлении")), obj)
-			elif relative_d == "left":
-				place[relative_d] = (f"Слева: {obj}", choice(("Повернуть налево", "Свернуть налево")), obj)
-			elif relative_d == "right":
-				place[relative_d] = (f"Справа: {obj}", choice(("Повернуть направо", "Свернуть направо")), obj)
-		
-		return place
-	'''
-	
 	# нарисовать/зачеркнуть стрелку по направлению движения
 	def mark(self, key):
 		if key == "up":
@@ -210,31 +133,6 @@ class MazeGame():
 			self.event_text["find_sheet"] = ""	
 		
 		return "".join(self.event_text.values())
-
-
-	# компас для интерфейса urwid
-	def draw_compass(self):
-		compass = "\nСогласно компасу, вы смотрите на "
-		if self.face == "up":
-			#north, south, east, west  = "\n\u22CF", "\n", "  ", "  "
-			#compass += "⍏"
-			compass += "север"
-		elif self.face == "down":
-			#south, north, east, west  = "\u22CE\n", "\n", "  ", "  "
-			#compass += "⍖"
-			compass += "юг"
-		elif self.face == "left":
-			#south, north, east, west  = "\n", "\n", "  ", " \u227A"
-			#compass += "⍅"
-			compass += "запад"
-		elif self.face == "right":
-			#south, north, east, west  = "\n", "\n", " \u227B", "  "
-			#compass += "⍆"
-			compass += "восток"
-			
-		# compass = f"N{north}\n\u2503\nW{west}\u2501\u2501\u2501\u2501\u2503\u2501\u2501\u2501\u2501{east}E\n\u2503\n{south}S" # big
-		# compass = f"N{north}\n\u2503\nW{west}\u2501\u2501\u2503\u2501\u2501{east}E\n\u2503\n{south}S" # small
-		return compass
 	
 	
 	def init_map_parts(self) -> tuple():
@@ -287,18 +185,8 @@ class MazeGame():
 							if temp_col_start > limit: temp_col_start = limit
 							temp[temp_row_start, temp_col_start] = c
 					#'''
-					# experimental
-					'''
-					if self.face == "down":
-						temp = np.rot90(temp, 2)					
-					elif self.face == "left":
-						temp = np.rot90(temp, -1)
-					elif self.face == "right":
-						temp = np.rot90(temp, 1)
-					'''
 					zeros = temp
-					
-					
+								
 				elif mode == "copybook": 
 				
 					copybook = []
@@ -326,66 +214,3 @@ class MazeGame():
 
 if __name__ == "__main__":
 	pass
-	'''
-	##TODO создать отдельную функцию
-	game = MazeGame(17, 17)
-	#game.make_step()
-	game.show_part_of_map()
-	game.mazeclass.find_way(game.row, game.col)
-	#print(game.mazeclass.walk[1:])
-	game.face = "up"
-	previous_point = (game.row, game.col)
-	text = ["отсюда иди:"]
-	current_face = game.face
-	for row, col in game.mazeclass.walk[1:]:
-		if row > previous_point[0]:
-			if game.face == "down":
-				direction = "вперёд"
-			elif game.face == "up":
-				direction = "назад"
-			elif game.face == "left":
-				direction = "налево"
-			elif game.face == "right":
-				direction = "направо"
-			game.face = "down"
-	
-		elif row < previous_point[0]:
-			if game.face == "down":
-				direction = "назад"
-			elif game.face == "up":
-				direction= "вперёд"
-			elif game.face == "left":
-				direction = "направо"
-			elif game.face == "right":
-				direction = "налево"
-			game.face = "up"
-	
-		elif col > previous_point[1]:
-			if game.face == "down":
-				direction = "налево"
-			elif game.face == "up":
-				direction = "направо"
-			elif game.face == "left":
-				direction = "назад"
-			elif game.face == "right":
-				direction = "вперёд"
-			game.face = "right"
-		
-		elif col < previous_point[1]:
-			if game.face == "down":
-				direction = "направо"
-			elif game.face == "up":
-				direction = "налево"
-			elif game.face == "left":
-				direction = "вперёд"
-			elif game.face == "right":
-				direction = "назад"
-			game.face = "left"
-		
-		if direction != text[-1]: text.append(direction)
-		previous_point = (row, col)
-	game.face = current_face
-	#print(current_face, text, game.face)
-	print(text[0], ", ".join(text[1:]))
-	game.mazeclass.print_maze(mode="way", interpolation="nearest", size_x=10, size_y=10)
-	'''
