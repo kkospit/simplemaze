@@ -9,14 +9,14 @@ class MazeGame():
 	__slots__ = ["mazeclass", "row", "col", "face", "markers", "chalk", "last_steps", 
 				 "maze", "map_parts", "sheets", "has_sheet", "current_sheet", 
 				 "sheet_limit", "use_sheet", "event_text", "map_points",
-				 "chalk_points", "sheets_points"]
+				 "chalk_points", "sheets_points", "beacon", "fog_of_maze"]
 	
 	def __init__(self, height, width):
 		self.mazeclass = SimpleMaze(height, width)
 		self.row = 1
 		self.col = 1
 		
-		largest_dim = max(self.mazeclass.height, self.mazeclass.width)
+		largest_dim = max(height, width)
 		
 		self.maze = self.mazeclass.maze
 		self.mazeclass.make_rooms(int(largest_dim/10)) # комнаты, просто уберём стены в области
@@ -34,13 +34,13 @@ class MazeGame():
 		
 		# бумага для черчения пути
 		self.sheets = [] 
-		self.has_sheet = 2 
-		self.sheet_limit = 30
+		self.has_sheet = 0 if height*width <= 400 else 2
+		self.sheet_limit = 40#int(sqrt(largest_dim))
 		self.current_sheet = []
 		self.use_sheet = False
 		
 		#  для отрисовки частей карты лабиринта на общей карте
-		self.map_parts = []
+		self.map_parts = [(0,0, 5, 5)]
 		#for _ in range(10):
 		#	self.map_parts.append(self.init_map_parts())
 			
@@ -49,10 +49,13 @@ class MazeGame():
 		
 		# раскидаем места с частями карты
 		free_points = tuple((map(tuple, np.argwhere(self.maze==self.mazeclass.PATH).tolist())))
-		self.map_points = sample(free_points, int(largest_dim/2))		
-		self.chalk_points = sample(free_points, int(largest_dim/2))		
-		self.sheets_points = sample(free_points, int(largest_dim/4))		
+		self.map_points = sample(free_points, int(largest_dim/3))		
+		self.chalk_points = sample(free_points, int(largest_dim/3))		
+		self.sheets_points = [] if height*width < 500 else sample(free_points, int(largest_dim/8))		
 		
+		
+		self.beacon = ((1,1),)# (sample(free_points, int(largest_dim/8)))
+		self.fog_of_maze = np.zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
 		
 	# нарисовать/зачеркнуть стрелку по направлению движения
 	def mark(self, key):
@@ -70,6 +73,7 @@ class MazeGame():
 		self.markers[(self.row, self.col)][key] = arrow[1] if self.markers[(self.row, self.col)].get(key) == arrow[0] else arrow[0]
 		self.chalk -= 3
 		
+		
 	# описание событий
 	def get_event(self):
 		# если нашли стрелку
@@ -80,7 +84,8 @@ class MazeGame():
 			self.event_text["arrows"] = ""
 		
 		if self.has_sheet > 0:
-			self.event_text["copybook"] = f"Листов для записей: {self.has_sheet}\n"
+			self.event_text["copybook"] = f"Листов для записей:{self.has_sheet}\n"
+			#self.event_text["sheets_count"] = f"\u250C\u2510   \n\u2514\u2518: {self.has_sheet}"
 			if self.use_sheet:
 				self.event_text["copybook"] += f"Вы зарисовываете маршрут.\n"
 		else:
@@ -90,16 +95,16 @@ class MazeGame():
 		
 		# предупредим, что место на листе скоро закончится
 		if self.has_sheet > 0:
-			sheet_lim = self.sheet_limit - len(self.current_sheet)
-			if sheet_lim >= 25:
+			sheet_lim = ((self.sheet_limit - len(self.current_sheet))/self.sheet_limit)
+			if sheet_lim >= 0.8:
 				self.event_text["sheet"] = "На текущем листе полно места.\n"
-			elif sheet_lim == 20:
+			elif 0.6 < sheet_lim <= 0.75:
 				self.event_text["sheet"] = "Примерно треть листа занята чертежом.\n"
-			elif sheet_lim == 15:
+			elif 0.3 < sheet_lim <= 0.5:
 				self.event_text["sheet"] = "Осталась половина листа.\n"
-			elif sheet_lim == 10:
+			elif 0.1 < sheet_lim <= 0.3:
 				self.event_text["sheet"] = "Осталась треть листа.\n"
-			elif sheet_lim == 5:
+			elif sheet_lim <= 0.05:
 				self.event_text["sheet"] = "Место на листе скоро закончится.\n"
 		else:
 			self.event_text["sheet"] = ""
@@ -136,31 +141,45 @@ class MazeGame():
 	
 	
 	def init_map_parts(self) -> tuple():
-		rand_row = randint(0, self.mazeclass.height-5)
-		rand_col = randint(0, self.mazeclass.width-5)
+		add_row = int(sqrt(self.mazeclass.height))
+		add_col = int(sqrt(self.mazeclass.width))
+		rand_row = randint(0, self.mazeclass.height-add_row)
+		rand_col = randint(0, self.mazeclass.width-add_col)
 		return (rand_row, # start row
 				rand_col, # start col
 				#rand_row+choice((5,10)), # end row
 				#rand_col+choice((5,10))) # end col
-				rand_row+int(sqrt(self.mazeclass.height)), # end row
-				rand_col+int(sqrt(self.mazeclass.width)) )# end col
-	
+				rand_row+add_row, # end row
+				rand_col+add_col)# end col
+
 	
 	# покажем кусочки карты
 	def show_part_of_map(self, mode="part"): # или по точкам - point
 		modes = ("part", "minimap", "copybook")
 		if mode in modes:
 			# заготовка
-			zeros = np.zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
+			#zeros = np.zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
 			if mode == "part":
-				# для примера, надо заготовить части при инициализации, 
-				# потом рандомно добавлять в список с координатами
+				# попробуем не создавать каждый раз массив, а заполнять созданный
+				# при инициализации
+				zeros = self.fog_of_maze
 				# перенесли на заготовку нужный кусок
-				for part in self.map_parts:
-					zeros[part[0]:part[2], part[1]:part[3]] = self.maze[part[0]:part[2], part[1]:part[3]]
-			
+				if len(self.map_parts) > 0:
+					for part in self.map_parts.copy():
+						# если область ещё не добавлена
+						if zeros[part[0], part[1]] == self.mazeclass.HIDE:
+							zeros[part[0]:part[2], part[1]:part[3]] = self.maze[part[0]:part[2], part[1]:part[3]]
+						# костыль для отображения игрока на карте перемещения
+						# только если игрок в открытой области
+						# стирание "следа" см. в интерфейсе def move
+						if part[0]<=self.row<part[2] and part[1]<=self.col<part[3]:
+							zeros[self.row, self.col] = self.mazeclass.PLAYER	
+						#self.map_parts.pop(self.map_parts.index(part))	
+				return zeros
+						
 			elif mode in modes[1:]:	
-				if mode == "minimap":			
+				zeros = np.zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
+				if mode == "minimap":	
 					rows = set([point[0] for point in self.last_steps])
 					cols = set([point[1] for point in self.last_steps])
 					# скопируем точки из списка посещённых
@@ -177,7 +196,7 @@ class MazeGame():
 					# полная жесть, но пока мои полномочия всё...
 					for idx_r, r in enumerate(zeros):
 						for idx_c, c in enumerate(r):
-							temp_row_start = 7-center[0][0]+idx_r 
+							temp_row_start = 7-center[0][0]+idx_r
 							temp_col_start = 7-center[0][1]+idx_c
 							if temp_row_start < 0: temp_row_start = 0
 							if temp_row_start > limit: temp_row_start = limit
@@ -185,7 +204,7 @@ class MazeGame():
 							if temp_col_start > limit: temp_col_start = limit
 							temp[temp_row_start, temp_col_start] = c
 					#'''
-					zeros = temp
+					return temp
 								
 				elif mode == "copybook": 
 				
@@ -195,22 +214,32 @@ class MazeGame():
 						s.append(self.current_sheet)
 
 					if len(s)>0:
+						on_map=False
 						for sheet in s:
 							rows = set([point[0] for point in sheet])
 							cols = set([point[1] for point in sheet])
 							# скопируем точки из списка посещённых
 							for r, c in sheet:
 								zeros[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
-							
+								# если на общей карте уже есть зарисованный путь
+								if self.fog_of_maze[r, c] == self.mazeclass.PATH:
+									on_map=True
+							if on_map:
+								# добавим зарисованный путь на карту
+								self.add_sheet_to_map(sheet)
+								on_map = False	
+									
 							# обрежем пустое место в заготовке и добавим кусочек в тетрадь
 							copybook.append(zeros[min(rows)-1:max(rows)+2, min(cols)-1:max(cols)+2])
 							zeros = np.zeros_like(zeros)
-						zeros = copybook
+						return copybook
 					else:
-						zeros = []
+						return []
 					
-			return zeros
 	
+	def add_sheet_to_map(self, sheet):
+		for r, c in sheet:
+			self.fog_of_maze[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
 
 if __name__ == "__main__":
 	pass
