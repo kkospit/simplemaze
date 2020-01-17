@@ -1,6 +1,6 @@
 import numpy as np
 from random import choice, sample, randint
-import matplotlib.pyplot as pyplot
+# import matplotlib.pyplot as pyplot
 from typing import List, Dict, Union
 
 class SimpleMaze():
@@ -20,9 +20,12 @@ class SimpleMaze():
 	
 	
 	def __init__(self, height=15, width=15):
+		if width < 5: width = 5
+		if height < 5: height = 5
 		# нам нужны нечётные значения ширины и высоты, поэтому:
 		if width % 2 == 0: width += 1
 		if height % 2 == 0: height += 1
+		
 		self.width = width
 		self.height = height
 		
@@ -186,15 +189,14 @@ class SimpleMaze():
 			start_col = randint(1,self.width-4)
 			self.maze[start_row:start_row+3, start_col:start_col+3] = np.full((3,3), self.PATH)
 		
-		
+	'''	
 	# вывести массив numpy(лабиринт) в виде картинки, используя matplotlib	
 	def print_maze(self, mode="original", interpolation="nearest", size_x=5, size_y=5):	
-		'''
-		interpolation
-	   [None, 'none', 'nearest', 'bilinear', 'bicubic', 'spline16',
+		
+		interpolation = [None, 'none', 'nearest', 'bilinear', 'bicubic', 'spline16',
 	   'spline36', 'hanning', 'hamming', 'hermite', 'kaiser', 'quadric',
 	   'catrom', 'gaussian', 'bessel', 'mitchell', 'sinc', 'lanczos']
-		'''
+		
 		if mode == "way":
 			maze = self.find_way(1, 1, True)
 		else:
@@ -204,7 +206,7 @@ class SimpleMaze():
 		pyplot.imshow(maze, cmap=pyplot.cm.gist_ncar, interpolation=interpolation)
 		pyplot.xticks([]), pyplot.yticks([])
 		pyplot.show()
-	
+	'''
 	
 	# как вариант, сделать чтобы куски карты открывались постепенно
 	# текущая релизация - отображает кусок карты определённого размера вокруг начальной точки
@@ -229,10 +231,5 @@ class SimpleMaze():
 		return text
 		
 if __name__ == "__main__":
-	maze = SimpleMaze(19, 19)
-	#maze.make_rooms(4)
-
-	# original - лабиринт без найденного пути, way - копия лабиринта с найдённым путём
-	#print(maze.maze, maze.way)
-	#maze.print_maze(mode="way", interpolation="nearest", size_x=5, size_y=5)
+	maze = SimpleMaze(3, 30)
 	print(maze.maze_to_string(maze.find_way(returned=True),1,1,47,41))

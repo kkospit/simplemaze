@@ -9,9 +9,16 @@ class MazeGame():
 	__slots__ = ["mazeclass", "row", "col", "face", "markers", "chalk", "last_steps", 
 				 "maze", "map_parts", "sheets", "has_sheet", "current_sheet", 
 				 "sheet_limit", "use_sheet", "event_text", "map_points",
-				 "chalk_points", "sheets_points", "beacon", "fog_of_maze"]
+				 "chalk_points", "sheets_points", "max_stored_steps", "beacon", 
+				 "fog_of_maze"]
 	
 	def __init__(self, height, width):
+		if width < 5: width = 5
+		if height < 5: height = 5
+		# нам нужны нечётные значения ширины и высоты, поэтому:
+		if width % 2 == 0: width += 1
+		if height % 2 == 0: height += 1
+		
 		self.mazeclass = SimpleMaze(height, width)
 		self.row = 1
 		self.col = 1
@@ -31,18 +38,17 @@ class MazeGame():
 		
 		# будет хранить последные пройденные координаты
 		self.last_steps = [(self.row, self.col)]
+		self.max_stored_steps = 15
 		
 		# бумага для черчения пути
 		self.sheets = [] 
 		self.has_sheet = 0 if height*width <= 400 else 2
-		self.sheet_limit = 40#int(sqrt(largest_dim))
+		self.sheet_limit = 35#int(sqrt(largest_dim))
 		self.current_sheet = []
 		self.use_sheet = False
 		
 		#  для отрисовки частей карты лабиринта на общей карте
-		self.map_parts = [(0,0, 5, 5)]
-		#for _ in range(10):
-		#	self.map_parts.append(self.init_map_parts())
+		self.map_parts = [(0,0, 5, 5)] # откроем стартовую точку
 			
 		self.event_text = {"arrows":"", "copybook":"", "sheet":"", "chalk":"", 
 						   "map_part":"", "find_chalk":"", "find_sheet":""}	
@@ -53,8 +59,8 @@ class MazeGame():
 		self.chalk_points = sample(free_points, int(largest_dim/3))		
 		self.sheets_points = [] if height*width < 500 else sample(free_points, int(largest_dim/8))		
 		
-		
-		self.beacon = ((1,1),)# (sample(free_points, int(largest_dim/8)))
+		# пустой массив с размерностью как у лабиринта, на который будем наносить 
+		# открываемые части общей карты
 		self.fog_of_maze = np.zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
 		
 	# нарисовать/зачеркнуть стрелку по направлению движения
@@ -154,7 +160,7 @@ class MazeGame():
 
 	
 	# покажем кусочки карты
-	def show_part_of_map(self, mode="part"): # или по точкам - point
+	def show_part_of_map(self, loop=None, mode="part"):
 		modes = ("part", "minimap", "copybook")
 		if mode in modes:
 			# заготовка
@@ -163,18 +169,19 @@ class MazeGame():
 				# попробуем не создавать каждый раз массив, а заполнять созданный
 				# при инициализации
 				zeros = self.fog_of_maze
+				# костыль для отображения игрока на карте перемещения
+				# только если игрок в открытой области
+				# стирание "следа" см. в интерфейсе def move
+				#if part[0]<=self.row<part[2] and part[1]<=self.col<part[3]:
+				if zeros[self.row, self.col] == self.mazeclass.PATH:
+					zeros[self.row, self.col] = self.mazeclass.PLAYER	
 				# перенесли на заготовку нужный кусок
 				if len(self.map_parts) > 0:
 					for part in self.map_parts.copy():
 						# если область ещё не добавлена
-						if zeros[part[0], part[1]] == self.mazeclass.HIDE:
-							zeros[part[0]:part[2], part[1]:part[3]] = self.maze[part[0]:part[2], part[1]:part[3]]
-						# костыль для отображения игрока на карте перемещения
-						# только если игрок в открытой области
-						# стирание "следа" см. в интерфейсе def move
-						if part[0]<=self.row<part[2] and part[1]<=self.col<part[3]:
-							zeros[self.row, self.col] = self.mazeclass.PLAYER	
-						#self.map_parts.pop(self.map_parts.index(part))	
+						#if zeros[part[0], part[1]] == self.mazeclass.HIDE:
+						zeros[part[0]:part[2], part[1]:part[3]] = self.maze[part[0]:part[2], part[1]:part[3]]
+						self.map_parts.pop(self.map_parts.index(part))	
 				return zeros
 						
 			elif mode in modes[1:]:	
@@ -224,10 +231,15 @@ class MazeGame():
 								# если на общей карте уже есть зарисованный путь
 								if self.fog_of_maze[r, c] == self.mazeclass.PATH:
 									on_map=True
+									#break # нужно ведь в тетреди дорисовать лист...
 							if on_map:
 								# добавим зарисованный путь на карту
 								self.add_sheet_to_map(sheet)
 								on_map = False	
+								# не будем хранить перенесённые зарисовки
+								if sheet in self.sheets:
+									self.sheets.pop(self.sheets.index(sheet))
+									break
 									
 							# обрежем пустое место в заготовке и добавим кусочек в тетрадь
 							copybook.append(zeros[min(rows)-1:max(rows)+2, min(cols)-1:max(cols)+2])
@@ -240,6 +252,44 @@ class MazeGame():
 	def add_sheet_to_map(self, sheet):
 		for r, c in sheet:
 			self.fog_of_maze[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
+	
+	
+	# обработка нажатий кнопок для движения по лабиринту		
+	def move(self, key):
+
+		if key in self.mazeclass.choose_way(mode="default", step=1):
+			self.face = key
+
+			# убрали метку игрока со старых координат
+			self.mazeclass.maze[self.row, self.col] = self.mazeclass.PATH
+			# костыль для используемого способа отрисовки общей карты
+			# не создавать заготовку каждый раз, а использовать созданный
+			# при инициализации массив, тут стираем "след" игрока
+			if self.fog_of_maze[self.row, self.col] != self.mazeclass.HIDE:
+				self.fog_of_maze[self.row, self.col] = self.mazeclass.PATH
+			# использую ту же функцию, которой "разрушал стены" и искал выход,
+			# только не передаю список посещённых точек
+			row, col = self.mazeclass.carve(direction=key, step=1)
+			self.mazeclass.maze[row, col] = self.mazeclass.PLAYER # теперь здесь метка игрока
+			self.mazeclass.player_pos = (row, col) # для choose_way
+			self.row, self.col = row, col
+
+			# миникарта
+			# добавим _новую_ точку в список для миникарты
+			if (row, col) not in self.last_steps:
+				self.last_steps.append((row, col))
+			# будем помнить ограниченное число посещённых точек
+			if len(self.last_steps) > self.max_stored_steps:
+				self.last_steps = self.last_steps[1:]
+
+			# если есть лист бумаги и/или карандаш
+			if self.use_sheet and (row, col) not in self.current_sheet:
+				self.current_sheet.append((row, col))
+				if len(self.current_sheet) >= self.sheet_limit:
+					self.sheets.append(self.current_sheet.copy())
+					self.current_sheet.clear()
+					self.has_sheet -= 1
+					self.use_sheet = False
 
 if __name__ == "__main__":
 	pass
