@@ -1,6 +1,8 @@
 import shutil # для подстройки размеров под окно терминала
-import urwid
-from mazegame import MazeGame
+import mazestartmenu
+from urwid import Text, Padding, Pile, Columns, Overlay, WidgetPlaceholder,\
+					ExitMainLoop, LineBox, BoxAdapter, AttrMap, Filler, \
+					ListBox, MainLoop
 
 # палитра
 palette = [
@@ -9,52 +11,11 @@ palette = [
     ('violet', 'white', 'dark magenta'),
     ('cyan', 'white', 'dark cyan'),
     ('caffe', 'white', 'brown'),
+    ('help', 'light gray', ''),
     ]
 
 game_over = False # установка окончания игры
-game = None # переменная под класс MazeGame
-
-# пока не знаю, как иначе...
-# настройка лабиринта
-########################################################################################################################
-########################################################################################################################
-def start_game(buttom, size):
-	#print(size[0].value(), size[1].value())
-	#try:
-	global game
-	game = MazeGame(size[0].value(), size[1].value())
-	#except:
-		#print("Введены некорректные параметры!")
-		#game = MazeGame(size[0].value(), size[1].value())
-	raise urwid.ExitMainLoop()
-	exit()
-
-def menu():	
-	hello = urwid.Text("Приветствую! Для продолжения настройте параметры лабиринта.\n"+
-					   "Если карта лабиринта будет некорректно отображаться, "+
-					   "попробуйте уменьшить значение ширины или развернуть окно.")
-	height_enter = urwid.IntEdit("Высота лабиринта: ", 30)
-	width_enter = urwid.IntEdit("Ширина лабиринта: ", 45)
-	done = urwid.Button("Готово")
-	done_pad = urwid.Padding(done, align="center", width=10)
-
-	back = urwid.AttrMap(urwid.SolidFill("\u25E6"), "blueprint")
-	pile = urwid.Pile([hello, urwid.Divider("\u2500"), height_enter, width_enter, done_pad])
-	menu = urwid.Filler(urwid.LineBox(pile))
-	main_widget = urwid.Overlay(menu,
-											back,
-											align="center",
-											width=35,
-											height=12,
-											valign="middle")
-	loop = urwid.MainLoop(main_widget, palette)
-	urwid.connect_signal(done, 'click', start_game, (height_enter, width_enter))
-	loop.run()
-
-menu()
-########################################################################################################################
-########################################################################################################################
-
+game = mazestartmenu.menu()
 
 lipsum = """
 "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
@@ -69,30 +30,25 @@ culpa qui officia deserunt mollit anim id est laborum."
 ########################################################################################################################
 # обработка нажатий кнопок для движения по лабиринту
 def move(key):
-
+		# основная функция в mazegame
 		game.move(key)
 		# нашли выход
 		if game.row == game.mazeclass.height-2 and game.col == game.mazeclass.width-2:
 			global game_over
 			game_over = True
 
-			#text.set_text("Вы выбрались из лабиринта!")
-			# не будем запускать matplotlib
-			# game.mazeclass.print_maze(interpolation="nearest")
 			# запустим перевод в текст
 			full_map = game.mazeclass.maze_to_string(None,1,1,game.mazeclass.height,
 															  game.mazeclass.width)
-			text = urwid.Text(full_map+"Лабиринт пройден!", align="center")
-			main_widget.original_widget = urwid.LineBox(urwid.Filler(text, valign="middle"))
-			#input("Лабиринт пройден! Нажмите любую клавишу для завершения.")
-			#raise urwid.ExitMainLoop()
+			text = Text("Лабиринт пройден!\n"+full_map, align="center")
+			main_widget.original_widget = LineBox(Filler(text, valign="middle"))
 
 		# изменяем описание места и меняем доступные кнопки
 		change_main_widgets()
 
 
 def exit(key):
-    raise urwid.ExitMainLoop()
+    raise ExitMainLoop()
 ########################################################################################################################
 ########################################################################################################################
 
@@ -105,13 +61,22 @@ def exit(key):
 def change_main_widgets():
 	minimap.set_text(("blueprint",create_minimap("update")))
 	location_text.set_text(create_location_text("update"))
-	description.set_text(create_descriprion("update"))
+	#description.set_text(create_descriprion("update"))
+
 
 # создать разметку
 def create_interface():
-	m_map = urwid.LineBox(minimap, tlcorner='', tline='', lline='', trcorner='', blcorner='', rline='│', bline='', brcorner='')
-	column = urwid.Columns([description, m_map, urwid.BoxAdapter(urwid.Filler(location_text, valign="middle"), 10)])
-	return urwid.Filler(column, valign="middle")
+	m_map = Padding(LineBox(minimap, 
+							tlcorner='', tline='', lline='', trcorner='', 
+							blcorner='', rline='│', bline='', brcorner=''), 
+							align="center", width=35)
+	_help = Text(("help", "Карта - m, тетрадь - c,\nНачать зарисовку - q\n"+
+						"сделать отметку - CTRL+arrow_key"), align="center")						
+	#column = Columns([description, Pile([m_map, _help]), BoxAdapter(
+	column = Columns([description, m_map, BoxAdapter(
+					Filler(location_text, valign=("relative", 20)), 20)])
+					
+	return Filler(Padding(column, align="center", width=120), valign="middle")
 
 
 # отрисовка нескольких точек, посещённых последними
@@ -123,7 +88,7 @@ def create_minimap(mode="creation") -> str:
 		minimap = game.show_part_of_map(mode="minimap")
 		last_steps = game.mazeclass.maze_to_string(minimap, row_end=minimap.shape[0], col_end=minimap.shape[1])
 	if mode == "creation":
-		return urwid.Text(("blueprint", last_steps), align="center")
+		return Text(("blueprint", last_steps), align="center")
 	elif mode == "update":
 		return last_steps
 
@@ -133,7 +98,7 @@ def create_location_text(mode="creation"):
 	possible_directions = game.mazeclass.choose_way(mode="default", step=1)
 	event_text = game.get_event()
 	if mode == "creation":
-		return urwid.Text(short_description(possible_directions) + "\n" + event_text, align="center")
+		return Text(short_description(possible_directions) + "\n" + event_text, align="center")
 	elif mode == "update":
 		return short_description(possible_directions) + "\n" + event_text
 		
@@ -141,7 +106,7 @@ def create_location_text(mode="creation"):
 # расширенное описание место, возможно, с выбором действий
 def create_descriprion(mode="creation"):
 	if mode == "creation":
-		return urwid.Text(lipsum, align="center")
+		return Text(lipsum, align="center")
 	elif mode == "update":
 		return "changed description"
 		
@@ -180,12 +145,12 @@ def mark(key):
 ########################################################################################################################
 ########################################################################################################################
 # функции для общей карты и тетради
-# создание карты для urwid
+# создание текстового представления карты
 def create_map():
 		# проверим, нет ли в зарисовках уже открытых частей карты,
 		# и, если есть, перенесём зарисовку на карту
 		game.show_part_of_map(mode="copybook")
-		_map = urwid.Text(game.mazeclass.maze_to_string(maze=game.show_part_of_map(),
+		_map = Text(game.mazeclass.maze_to_string(maze=game.show_part_of_map(),
 																row_start=1,
 																col_start=1,
 																row_end=(game.mazeclass.height+5),
@@ -193,16 +158,17 @@ def create_map():
 																align='center',
 																wrap='space',
 																layout=None)
-		listbox = urwid.ListBox([_map])
+		listbox = ListBox([_map])
 		# сдвинем фокус, чтобы игрок всегда был видел
-		listbox.shift_focus((game.mazeclass.width*2+5, game.mazeclass.height), -(game.row-20))
-		return urwid.LineBox(listbox)
+		offset = 15 if game.maze.shape[0] > 15 else game.maze.shape[0]
+		listbox.shift_focus((game.mazeclass.width*2+5, game.mazeclass.height), -(game.row-offset))
+		return LineBox(listbox)
 
 
 # создание overlay с картой
 def show_map(_map):
 	lines = shutil.get_terminal_size()[1] # число строк в окне
-	main_widget.original_widget = urwid.Overlay(_map, box, align="center",
+	main_widget.original_widget = Overlay(_map, box, align="center",
 								width=(game.mazeclass.width*2+5),
 								height=int(lines*0.9) if game.mazeclass.height 
 														> lines*0.9 else 
@@ -218,15 +184,15 @@ def create_copybook():
 		body = []
 		for idx, sheet in enumerate(_copybook):
 			#print(idx, sheet)
-			body.append(urwid.Text(game.mazeclass.maze_to_string(maze=sheet,
+			body.append(Text(game.mazeclass.maze_to_string(maze=sheet,
 						row_start=1, col_start=1, row_end=31, col_end=31),
 						align='center', wrap='space', layout=None))		
 		return body
 
 
 def show_copybook(body):
-	listbox = urwid.ListBox([*body])
-	main_widget.original_widget = urwid.Overlay(urwid.LineBox(listbox), box, 
+	listbox = ListBox([*body])
+	main_widget.original_widget = Overlay(LineBox(listbox), box, 
 						align="center", width=62, height=31, valign="middle")
 
 	#меняем фокус на последний зарисованный участок лабиринта
@@ -244,8 +210,7 @@ def button_power(key):
 				# нарисуем карту
 				show_map(create_map())
 			else:
-				# из оверлея берём нижний, который у нас основной
-				main_widget.original_widget = main_widget.original_widget.contents[0][0]
+				main_widget.original_widget = box
 				button_power.overlay = 0
 
 		# записи на листах
@@ -255,20 +220,19 @@ def button_power(key):
 				if button_power.overlay == 0:
 					show_copybook(body)
 				else:
-					# из оверлея берём нижний, который у нас основной
-					main_widget.original_widget = main_widget.original_widget.contents[0][0]
+					main_widget.original_widget = box
 					button_power.overlay = 0
 			
 		# блокируем нажатия при включенной карте
 		if button_power.overlay == 0:
 			#all_directions = game.relative_directions()[0]
 			if key == "esc":
-				raise urwid.ExitMainLoop()
+				raise ExitMainLoop()
 			elif key in ("down", "up","left", "right"):
 				#move(all_directions[key])
 				move(key)
 
-			elif key == "q":
+			elif key in ("q","Q", "Й", "й"):
 				if game.has_sheet > 0:
 					game.use_sheet = True
 
@@ -304,8 +268,8 @@ location_text = create_location_text()
 description = create_descriprion()
 # создали разметку с этими элементами
 interface = create_interface()
-box = urwid.LineBox(interface)
-main_widget = urwid.WidgetPlaceholder(box)
+box = LineBox(interface)
+main_widget = WidgetPlaceholder(box)
 # запуск
-main_loop = urwid.MainLoop(main_widget, palette, unhandled_input=button_power)
+main_loop = MainLoop(main_widget, palette, unhandled_input=button_power)
 main_loop.run()

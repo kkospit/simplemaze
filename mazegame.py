@@ -1,8 +1,10 @@
 from random import choice, sample, randint
 from typing import List, Dict
-import numpy as np
+from numpy import argwhere, zeros, zeros_like
 from simple_maze import SimpleMaze
 from math import sqrt
+
+
 class MazeGame():
 	
 	
@@ -54,14 +56,14 @@ class MazeGame():
 						   "map_part":"", "find_chalk":"", "find_sheet":""}	
 		
 		# раскидаем места с частями карты
-		free_points = tuple((map(tuple, np.argwhere(self.maze==self.mazeclass.PATH).tolist())))
+		free_points = tuple((map(tuple, argwhere(self.maze==self.mazeclass.PATH).tolist())))
 		self.map_points = sample(free_points, int(largest_dim/3))		
 		self.chalk_points = sample(free_points, int(largest_dim/3))		
 		self.sheets_points = [] if height*width < 500 else sample(free_points, int(largest_dim/8))		
 		
 		# пустой массив с размерностью как у лабиринта, на который будем наносить 
 		# открываемые части общей карты
-		self.fog_of_maze = np.zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
+		self.fog_of_maze = zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
 		
 	# нарисовать/зачеркнуть стрелку по направлению движения
 	def mark(self, key):
@@ -143,6 +145,10 @@ class MazeGame():
 		else:
 			self.event_text["find_sheet"] = ""	
 		
+		# test
+		if (self.row, self.col) == (1, 1):
+			self.fog_of_maze[1, 1] = 9 
+		
 		return "".join(self.event_text.values())
 	
 	
@@ -153,8 +159,6 @@ class MazeGame():
 		rand_col = randint(0, self.mazeclass.width-add_col)
 		return (rand_row, # start row
 				rand_col, # start col
-				#rand_row+choice((5,10)), # end row
-				#rand_col+choice((5,10))) # end col
 				rand_row+add_row, # end row
 				rand_col+add_col)# end col
 
@@ -164,44 +168,43 @@ class MazeGame():
 		modes = ("part", "minimap", "copybook")
 		if mode in modes:
 			# заготовка
-			#zeros = np.zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
 			if mode == "part":
 				# попробуем не создавать каждый раз массив, а заполнять созданный
 				# при инициализации
-				zeros = self.fog_of_maze
+				blank_map = self.fog_of_maze
 				# костыль для отображения игрока на карте перемещения
 				# только если игрок в открытой области
-				# стирание "следа" см. в интерфейсе def move
-				#if part[0]<=self.row<part[2] and part[1]<=self.col<part[3]:
-				if zeros[self.row, self.col] == self.mazeclass.PATH:
-					zeros[self.row, self.col] = self.mazeclass.PLAYER	
+				# стирание "следа" см. в def move
+				if blank_map[self.row, self.col] == self.mazeclass.PATH:
+					blank_map[self.row, self.col] = self.mazeclass.PLAYER	
 				# перенесли на заготовку нужный кусок
 				if len(self.map_parts) > 0:
 					for part in self.map_parts.copy():
 						# если область ещё не добавлена
 						#if zeros[part[0], part[1]] == self.mazeclass.HIDE:
-						zeros[part[0]:part[2], part[1]:part[3]] = self.maze[part[0]:part[2], part[1]:part[3]]
+						blank_map[part[0]:part[2], part[1]:part[3]] = self.maze[part[0]:part[2], part[1]:part[3]]
 						self.map_parts.pop(self.map_parts.index(part))	
-				return zeros
+				return blank_map
 						
 			elif mode in modes[1:]:	
-				zeros = np.zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
+				blank_map = zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
+				
 				if mode == "minimap":	
 					rows = set([point[0] for point in self.last_steps])
 					cols = set([point[1] for point in self.last_steps])
 					# скопируем точки из списка посещённых
 					for r, c in self.last_steps:
-						zeros[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
+						blank_map[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
 					# обрежем пустое место в заготовке
-					zeros = zeros[min(rows)-1:max(rows)+2, min(cols)-1:max(cols)+2]
+					blank_map = blank_map[min(rows)-1:max(rows)+2, min(cols)-1:max(cols)+2]
 					# положение игрока в урезанном массиве
-					center = np.argwhere(zeros == self.mazeclass.PLAYER) 
-					temp = np.zeros((15,15), dtype="int")
+					center = argwhere(blank_map == self.mazeclass.PLAYER) 
+					temp = zeros((15,15), dtype="int")
 					limit = temp.shape[0]-1
 					#'''
 					# это позволит отметке игрока находится в центре миникарты
 					# полная жесть, но пока мои полномочия всё...
-					for idx_r, r in enumerate(zeros):
+					for idx_r, r in enumerate(blank_map):
 						for idx_c, c in enumerate(r):
 							temp_row_start = 7-center[0][0]+idx_r
 							temp_col_start = 7-center[0][1]+idx_c
@@ -214,7 +217,6 @@ class MazeGame():
 					return temp
 								
 				elif mode == "copybook": 
-				
 					copybook = []
 					s = self.sheets.copy()
 					if len(self.current_sheet)>0: 
@@ -227,7 +229,10 @@ class MazeGame():
 							cols = set([point[1] for point in sheet])
 							# скопируем точки из списка посещённых
 							for r, c in sheet:
-								zeros[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
+								try:
+									blank_map[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
+								except:
+									print(r, c, sheet)
 								# если на общей карте уже есть зарисованный путь
 								if self.fog_of_maze[r, c] == self.mazeclass.PATH:
 									on_map=True
@@ -242,13 +247,13 @@ class MazeGame():
 									break
 									
 							# обрежем пустое место в заготовке и добавим кусочек в тетрадь
-							copybook.append(zeros[min(rows)-1:max(rows)+2, min(cols)-1:max(cols)+2])
-							zeros = np.zeros_like(zeros)
+							copybook.append(blank_map[min(rows)-1:max(rows)+2, min(cols)-1:max(cols)+2])
+							blank_map = zeros_like(blank_map)
 						return copybook
 					else:
 						return []
 					
-	
+	# см. show_part_of_map mode=copybook
 	def add_sheet_to_map(self, sheet):
 		for r, c in sheet:
 			self.fog_of_maze[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
@@ -282,7 +287,7 @@ class MazeGame():
 			if len(self.last_steps) > self.max_stored_steps:
 				self.last_steps = self.last_steps[1:]
 
-			# если есть лист бумаги и/или карандаш
+			# если есть лист бумаги и/или карандаш(?)
 			if self.use_sheet and (row, col) not in self.current_sheet:
 				self.current_sheet.append((row, col))
 				if len(self.current_sheet) >= self.sheet_limit:
@@ -290,6 +295,7 @@ class MazeGame():
 					self.current_sheet.clear()
 					self.has_sheet -= 1
 					self.use_sheet = False
+
 
 if __name__ == "__main__":
 	pass

@@ -1,10 +1,11 @@
-import numpy as np
+from numpy import full, argwhere, ndarray
 from random import choice, sample, randint
 # import matplotlib.pyplot as pyplot
 from typing import List, Dict, Union
 
-class SimpleMaze():
 
+class SimpleMaze():
+	# кароч, надо сериализовать в json
 	BORDER: int = 1
 	KNOT: int = 2
 	PATH: int = 3
@@ -13,6 +14,8 @@ class SimpleMaze():
 	WAY_OUT: int = 4
 	BAD_WAY: int = 5
 
+	LANDMARK = 9
+	
 	PLAYER = 8
 	EXIT = 30
 	
@@ -31,14 +34,15 @@ class SimpleMaze():
 		
 		self.way: list() = [] # стек точек при постройке лабиринта
 		self.walk: list() = [] # стек точек при поиске пути
-		
+
 		self.maze = self.create_maze() # готовый лабиринт
 		# буду сюда записывать координаты игрока, чтобы не передавать кучу параметров
 		self.player_pos = (1,1)
-			
+		
+				
 	# заготовка лабиринта
-	def create_grid(self) -> np.ndarray:
-		grid = np.full((self.height, self.width), self.BORDER, dtype="int")
+	def create_grid(self) -> ndarray:
+		grid = full((self.height, self.width), self.BORDER, dtype="int")
 		
 		# сетка из точек, которые будут опорными при построении лабиринта
 		for idx_row, row in enumerate(grid):
@@ -54,7 +58,7 @@ class SimpleMaze():
 	# BORDER - при создании лабиринта, как бы разрушаются стены для создания пути
 	# PATH - при поиске пути, то есть пространство между стенами, по которому можно "идти"
 	def choose_way(self, maze=None, mode="creation", step=2) -> list():
-		if type(maze) != np.ndarray:
+		if type(maze) != ndarray:
 			maze = self.maze
 
 		dirs: List[str] = []
@@ -130,10 +134,8 @@ class SimpleMaze():
 	def create_maze(self):
 		# заготовка
 		maze = self.create_grid()
-
 		# начальная точка
-		row, col = choice(np.argwhere(maze==self.KNOT))
-
+		row, col = choice(argwhere(maze==self.KNOT))
 		# стек посещённых точек при постройке лабиринта
 		self.way.append((row, col))
 		
@@ -187,7 +189,7 @@ class SimpleMaze():
 		for _ in range(nums):
 			start_row = randint(1,self.height-4)
 			start_col = randint(1,self.width-4)
-			self.maze[start_row:start_row+3, start_col:start_col+3] = np.full((3,3), self.PATH)
+			self.maze[start_row:start_row+3, start_col:start_col+3] = full((3,3), self.PATH)
 		
 	'''	
 	# вывести массив numpy(лабиринт) в виде картинки, используя matplotlib	
@@ -212,24 +214,29 @@ class SimpleMaze():
 	# текущая релизация - отображает кусок карты определённого размера вокруг начальной точки
 	# TODO сделать возможность отображать пройденный маршрут
 	def maze_to_string(self, maze, row_start=1, col_start=1, row_end=2, col_end=2):
-		if type(maze) != np.ndarray:
+		if type(maze) != ndarray:
 			maze = self.maze
-	
-		maze_table = f"{self.BORDER}{self.PATH}{self.PLAYER}{self.HIDE}{self.WAY_OUT}{self.BAD_WAY}"
-		maze_string = "\u2591\u2588\u25C9\u25E6\u272F!" # black path
-		#maze_string = "\u2588\u2591\u25C9\u25E6" # white path
-		table = str.maketrans(maze_table, maze_string)
-
+		
+		if row_start > row_end:
+			row_end, row_start = row_start, row_end
+		if col_start > col_end:
+			col_end, col_start = col_start, col_end
+			
+		maze_strings = ("\u2591", "\u2588", "\u25C9", "\u25E6", "\u272F", "!", "*")
+		maze_numbers = (self.BORDER, self.PATH, self.PLAYER, self.HIDE, self.WAY_OUT, self.BAD_WAY, self.LANDMARK)
 		part = maze[min(row_start, row_end)-1:max(row_start, row_end)+2, min(col_start, col_end)-1:max(col_start, col_end)+2]
 		
 		text = ""
 		for row in part:
 			for col in row:
-				text += str(col).translate(table) + str(col).translate(table)
+				if col in maze_numbers:
+					text += maze_strings[maze_numbers.index(col)]*2
 			text += '\n'
-	
+		
 		return text
+
 		
 if __name__ == "__main__":
-	maze = SimpleMaze(3, 30)
+	maze = SimpleMaze(40, 40)
 	print(maze.maze_to_string(maze.find_way(returned=True),1,1,47,41))
+	print(maze.maze_to_string(maze.maze,1,1,40,40))
