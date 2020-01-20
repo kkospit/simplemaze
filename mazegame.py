@@ -29,7 +29,7 @@ class MazeGame():
 		
 		self.maze = self.mazeclass.maze
 		self.mazeclass.make_rooms(int(largest_dim/10)) # комнаты, просто уберём стены в области
-		self.maze[self.row, self.col] = self.mazeclass.PLAYER
+		self.maze[self.row, self.col] = self.mazeclass.objects["player"]
 		# разворачиваем игрока лицом в коридор
 		possible = self.mazeclass.choose_way(mode="default", step=1)
 		self.face = choice(possible) # face - куда смотрит игрок относительно лабиринта, начало координат внизу
@@ -50,13 +50,13 @@ class MazeGame():
 		self.use_sheet = False
 		
 		#  для отрисовки частей карты лабиринта на общей карте
-		self.map_parts = [(0,0, 5, 5)] # откроем стартовую точку
+		self.map_parts = [] # откроем стартовую точку
 			
 		self.event_text = {"arrows":"", "copybook":"", "sheet":"", "chalk":"", 
 						   "map_part":"", "find_chalk":"", "find_sheet":""}	
 		
-		# раскидаем места с частями карты
-		free_points = tuple((map(tuple, argwhere(self.maze==self.mazeclass.PATH).tolist())))
+		# раскидаем места с предметами
+		free_points = tuple((map(tuple, argwhere(self.maze==self.mazeclass.objects["path"]).tolist())))
 		self.map_points = sample(free_points, int(largest_dim/3))		
 		self.chalk_points = sample(free_points, int(largest_dim/3))		
 		self.sheets_points = [] if height*width < 500 else sample(free_points, int(largest_dim/8))		
@@ -64,6 +64,7 @@ class MazeGame():
 		# пустой массив с размерностью как у лабиринта, на который будем наносить 
 		# открываемые части общей карты
 		self.fog_of_maze = zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
+		self.fog_of_maze[0:6, 0:6] = self.maze[0:6, 0:6]
 		
 	# нарисовать/зачеркнуть стрелку по направлению движения
 	def mark(self, key):
@@ -175,8 +176,8 @@ class MazeGame():
 				# костыль для отображения игрока на карте перемещения
 				# только если игрок в открытой области
 				# стирание "следа" см. в def move
-				if blank_map[self.row, self.col] == self.mazeclass.PATH:
-					blank_map[self.row, self.col] = self.mazeclass.PLAYER	
+				if blank_map[self.row, self.col] == self.mazeclass.objects["path"]:
+					blank_map[self.row, self.col] = self.mazeclass.objects["player"]	
 				# перенесли на заготовку нужный кусок
 				if len(self.map_parts) > 0:
 					for part in self.map_parts.copy():
@@ -187,36 +188,74 @@ class MazeGame():
 				return blank_map
 						
 			elif mode in modes[1:]:	
-				blank_map = zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
 				
 				if mode == "minimap":	
-					rows = set([point[0] for point in self.last_steps])
-					cols = set([point[1] for point in self.last_steps])
-					# скопируем точки из списка посещённых
+					blank_minimap = zeros((15, 15), dtype="int")
+					# смещение, 7 - центр
+					row_mod = (self.row-7)
+					col_mod = (self.col-7)
 					for r, c in self.last_steps:
-						blank_map[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
-					# обрежем пустое место в заготовке
-					blank_map = blank_map[min(rows)-1:max(rows)+2, min(cols)-1:max(cols)+2]
-					# положение игрока в урезанном массиве
-					center = argwhere(blank_map == self.mazeclass.PLAYER) 
-					temp = zeros((15,15), dtype="int")
-					limit = temp.shape[0]-1
-					#'''
-					# это позволит отметке игрока находится в центре миникарты
-					# полная жесть, но пока мои полномочия всё...
-					for idx_r, r in enumerate(blank_map):
-						for idx_c, c in enumerate(r):
-							temp_row_start = 7-center[0][0]+idx_r
-							temp_col_start = 7-center[0][1]+idx_c
-							if temp_row_start < 0: temp_row_start = 0
-							if temp_row_start > limit: temp_row_start = limit
-							if temp_col_start < 0: temp_col_start = 0
-							if temp_col_start > limit: temp_col_start = limit
-							temp[temp_row_start, temp_col_start] = c
-					#'''
-					return temp
-								
+						new_r = r - row_mod
+						new_c = c - col_mod
+						# если точка не влазит на миникарту
+						if new_r<=0:continue
+						if new_r+2>14:continue
+						if new_c<=0:continue
+						if new_c+2>14:continue
+						try:
+							# даже если какая-то ошибка произойдёт,
+							# миникарта отрисуется нормально
+							blank_minimap[new_r-1:new_r+2, new_c-1:new_c+2] = self.maze[r-1:r+2, c-1:c+2]
+						except:
+							# пока оставим для проверки
+							print(new_r, new_c, self.row, self.col)
+					return blank_minimap 		
+						
 				elif mode == "copybook": 
+					copybook = []
+					s = self.sheets.copy()
+					if len(self.current_sheet) > 0: 
+						s.append(self.current_sheet)
+
+					if len(s)>0:
+						for sheet in s:
+							on_map=False
+							rows = set([point[0] for point in sheet])
+							cols = set([point[1] for point in sheet])
+							min_row = min(rows)
+							min_col = min(cols)
+							height = len(rows)
+							width = len(cols) 
+							
+							blank_sheet = zeros((height+2, width+2), dtype="int")
+							for r, c in sheet:
+								# учитывая стены, которые могут быть над строкой
+								new_r = r - min_row + 1 
+								new_c = c - min_col + 1
+								#if new_r<=0:continue
+								#if new_r>height:continue
+								#if new_c<=0:continue
+								#if new_c>width:continue
+								blank_sheet[new_r-1:new_r+2, new_c-1:new_c+2] =  self.maze[r-1:r+2, c-1:c+2]
+								# если какая-либо точка открыта на карте
+								if self.fog_of_maze[r, c] == self.mazeclass.objects["path"]:
+									on_map=True
+
+							copybook.append(blank_sheet)
+
+							if on_map:
+								print("asdasdasadad")
+								# добавим зарисованный путь на карту
+								self.add_sheet_to_map(sheet)
+								# on_map = False	
+								# не будем хранить перенесённые зарисовки
+								if sheet in self.sheets:
+									self.sheets.pop(self.sheets.index(sheet))
+									break
+					return copybook
+
+					'''
+					blank_map = zeros((self.mazeclass.height, self.mazeclass.width), dtype="int")
 					copybook = []
 					s = self.sheets.copy()
 					if len(self.current_sheet)>0: 
@@ -229,12 +268,9 @@ class MazeGame():
 							cols = set([point[1] for point in sheet])
 							# скопируем точки из списка посещённых
 							for r, c in sheet:
-								try:
-									blank_map[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
-								except:
-									print(r, c, sheet)
+								blank_map[r-1:r+2, c-1:c+2] = self.maze[r-1:r+2, c-1:c+2]
 								# если на общей карте уже есть зарисованный путь
-								if self.fog_of_maze[r, c] == self.mazeclass.PATH:
+								if self.fog_of_maze[r, c] == self.mazeclass.objects["path"]:
 									on_map=True
 									#break # нужно ведь в тетреди дорисовать лист...
 							if on_map:
@@ -250,8 +286,8 @@ class MazeGame():
 							copybook.append(blank_map[min(rows)-1:max(rows)+2, min(cols)-1:max(cols)+2])
 							blank_map = zeros_like(blank_map)
 						return copybook
-					else:
-						return []
+						'''
+					
 					
 	# см. show_part_of_map mode=copybook
 	def add_sheet_to_map(self, sheet):
@@ -266,20 +302,19 @@ class MazeGame():
 			self.face = key
 
 			# убрали метку игрока со старых координат
-			self.mazeclass.maze[self.row, self.col] = self.mazeclass.PATH
+			self.mazeclass.maze[self.row, self.col] = self.mazeclass.objects["path"]
 			# костыль для используемого способа отрисовки общей карты
 			# не создавать заготовку каждый раз, а использовать созданный
 			# при инициализации массив, тут стираем "след" игрока
-			if self.fog_of_maze[self.row, self.col] != self.mazeclass.HIDE:
-				self.fog_of_maze[self.row, self.col] = self.mazeclass.PATH
+			if self.fog_of_maze[self.row, self.col] != self.mazeclass.objects["hide"]: #hide==0
+				self.fog_of_maze[self.row, self.col] = self.mazeclass.objects["path"]
 			# использую ту же функцию, которой "разрушал стены" и искал выход,
 			# только не передаю список посещённых точек
 			row, col = self.mazeclass.carve(direction=key, step=1)
-			self.mazeclass.maze[row, col] = self.mazeclass.PLAYER # теперь здесь метка игрока
+			self.mazeclass.maze[row, col] = self.mazeclass.objects["player"] # теперь здесь метка игрока
 			self.mazeclass.player_pos = (row, col) # для choose_way
 			self.row, self.col = row, col
 
-			# миникарта
 			# добавим _новую_ точку в список для миникарты
 			if (row, col) not in self.last_steps:
 				self.last_steps.append((row, col))

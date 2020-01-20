@@ -5,22 +5,8 @@ from typing import List, Dict, Union
 
 
 class SimpleMaze():
-	# кароч, надо сериализовать в json
-	BORDER: int = 1
-	KNOT: int = 2
-	PATH: int = 3
-	HIDE: int = 0
- 
-	WAY_OUT: int = 4
-	BAD_WAY: int = 5
-
-	LANDMARK = 9
-	
-	PLAYER = 8
-	EXIT = 30
-	
-	__slots__ = ["width", "height", "way", "walk", "maze", "player_pos"]
-	
+		
+	__slots__ = ["width", "height", "way", "walk", "maze", "player_pos", "objects"]
 	
 	def __init__(self, height=15, width=15):
 		if width < 5: width = 5
@@ -34,6 +20,10 @@ class SimpleMaze():
 		
 		self.way: list() = [] # стек точек при постройке лабиринта
 		self.walk: list() = [] # стек точек при поиске пути
+		
+		self.objects = {"border":1, "knot":2, "path":3, "hide":0, 
+						"way_out": 4, "bad_way":5, "player":8,
+						"landmark":9}
 
 		self.maze = self.create_maze() # готовый лабиринт
 		# буду сюда записывать координаты игрока, чтобы не передавать кучу параметров
@@ -42,13 +32,13 @@ class SimpleMaze():
 				
 	# заготовка лабиринта
 	def create_grid(self) -> ndarray:
-		grid = full((self.height, self.width), self.BORDER, dtype="int")
+		grid = full((self.height, self.width), self.objects["border"], dtype="int")
 		
 		# сетка из точек, которые будут опорными при построении лабиринта
 		for idx_row, row in enumerate(grid):
 			for idx_col, col in enumerate(row):
 				if idx_col % 2 != 0 and idx_row % 2 != 0:
-					grid[idx_row][idx_col] = self.KNOT
+					grid[idx_row][idx_col] = self.objects["knot"]
 
 		return grid
 		
@@ -64,13 +54,13 @@ class SimpleMaze():
 		dirs: List[str] = []
 				
 		if mode == "creation": 
-			obj = (self.BORDER,)
+			obj = (self.objects["border"],)
 			row, col = self.way[-1]
 		elif mode == "default":
-			obj = (self.PATH, self.WAY_OUT) 
+			obj = (self.objects["path"], self.objects["way_out"]) 
 			row, col = self.player_pos
 		elif mode == "search":
-			obj = (self.PATH, self.PLAYER) 
+			obj = (self.objects["path"], self.objects["player"]) 
 			row, col = self.walk[-1]
 		else:
 			print('Выберите режим: "default", "creation", "search"')
@@ -78,26 +68,26 @@ class SimpleMaze():
 		# col+step(=2) при создании - попадание на KNOT
 		# col+1 при создании - попадание на BORDER
 		if col+step < self.width and maze[row, col+1] in obj:
-			if mode == "creation" and maze[row, col+2] == self.KNOT:
+			if mode == "creation" and maze[row, col+2] == self.objects["knot"]:
 				dirs.append("right")
 			#elif maze_creation == False:
 			elif mode != "creation":
 				dirs.append("right")
 		
 		if col-step >= 0 and maze[row, col-1] in obj:
-			if  mode == "creation" and maze[row, col-2] == self.KNOT:
+			if  mode == "creation" and maze[row, col-2] == self.objects["knot"]:
 				dirs.append("left")
 			elif mode != "creation":
 				dirs.append("left")
 		
 		if row+step < self.height and maze[row+1, col] in obj:
-			if  mode == "creation" and maze[row+2, col] == self.KNOT:
+			if  mode == "creation" and maze[row+2, col] == self.objects["knot"]:
 				dirs.append("down")
 			elif mode != "creation":
 				dirs.append("down")
 		
 		if row-step >= 0 and maze[row-1, col] in obj:
-			if  mode == "creation" and maze[row-2, col] == self.KNOT:
+			if  mode == "creation" and maze[row-2, col] == self.objects["knot"]:
 				dirs.append("up")
 			elif mode != "creation":
 				dirs.append("up")
@@ -135,7 +125,7 @@ class SimpleMaze():
 		# заготовка
 		maze = self.create_grid()
 		# начальная точка
-		row, col = choice(argwhere(maze==self.KNOT))
+		row, col = choice(argwhere(maze==self.objects["knot"]))
 		# стек посещённых точек при постройке лабиринта
 		self.way.append((row, col))
 		
@@ -149,9 +139,9 @@ class SimpleMaze():
 				continue
 			new_y, new_x = self.carve(choice(directions), mode="creation")
 			# покрасим последнюю точку в стеке в цвет прохода
-			maze[self.way[-1][0], self.way[-1][1]] = self.PATH
+			maze[self.way[-1][0], self.way[-1][1]] = self.objects["path"]
 			# покрасим "разрушенную" стену в цвет прохода
-			maze[new_y, new_x] = self.PATH
+			maze[new_y, new_x] = self.objects["path"]
 		
 		return maze
 		
@@ -164,7 +154,7 @@ class SimpleMaze():
 		
 		self.walk.clear()		
 		self.walk.append((row, col))# стек для поиска пути
-		maze[row, col] = self.WAY_OUT
+		maze[row, col] = self.objects["way_out"]
 		
 		while True:
 			if not self.walk or (self.walk[-1][0] == self.height-2 and self.walk[-1][1] == self.width-2):
@@ -172,12 +162,12 @@ class SimpleMaze():
 			
 			directions = self.choose_way(maze, mode="search", step=1)
 			if not directions:
-				maze[self.walk[-1][0], self.walk[-1][1]] = self.BAD_WAY
+				maze[self.walk[-1][0], self.walk[-1][1]] = self.objects["bad_way"]
 				self.walk.pop(-1)
 				continue
 			
 			next_row, next_col = self.carve(choice(directions), mode = "search", step=1)
-			maze[next_row, next_col] = self.WAY_OUT
+			maze[next_row, next_col] = self.objects["way_out"]
 			#self.walk.append((next_row, next_col)) # добавление происходит в carve в режиме search
 		
 		if returned:
@@ -189,7 +179,7 @@ class SimpleMaze():
 		for _ in range(nums):
 			start_row = randint(1,self.height-4)
 			start_col = randint(1,self.width-4)
-			self.maze[start_row:start_row+3, start_col:start_col+3] = full((3,3), self.PATH)
+			self.maze[start_row:start_row+3, start_col:start_col+3] = full((3,3), self.objects["path"])
 		
 	'''	
 	# вывести массив numpy(лабиринт) в виде картинки, используя matplotlib	
@@ -222,8 +212,15 @@ class SimpleMaze():
 		if col_start > col_end:
 			col_end, col_start = col_start, col_end
 			
-		maze_strings = ("\u2591", "\u2588", "\u25C9", "\u25E6", "\u272F", "!", "*")
-		maze_numbers = (self.BORDER, self.PATH, self.PLAYER, self.HIDE, self.WAY_OUT, self.BAD_WAY, self.LANDMARK)
+		maze_strings = ("\u2591", "\u2588", 
+						"\u25C9", "\u25E6", 
+						"\u272F", "!", 
+						"*")
+		maze_numbers = (self.objects["border"], self.objects["path"], 
+						self.objects["player"], self.objects["hide"], 
+						self.objects["way_out"], self.objects["bad_way"], 
+						self.objects["landmark"])
+						
 		part = maze[min(row_start, row_end)-1:max(row_start, row_end)+2, min(col_start, col_end)-1:max(col_start, col_end)+2]
 		
 		text = ""

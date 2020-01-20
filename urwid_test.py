@@ -56,7 +56,7 @@ def exit(key):
 
 ########################################################################################################################
 ########################################################################################################################
-#Блок функций основного интерфейса
+# Блок функций основного интерфейса
 # обновить виджеты
 def change_main_widgets():
 	minimap.set_text(("blueprint",create_minimap("update")))
@@ -103,7 +103,7 @@ def create_location_text(mode="creation"):
 		return short_description(possible_directions) + "\n" + event_text
 		
 		
-# расширенное описание место, возможно, с выбором действий
+# расширенное описание место, возможно, с выбором действий - TODO
 def create_descriprion(mode="creation"):
 	if mode == "creation":
 		return Text(lipsum, align="center")
@@ -150,6 +150,7 @@ def create_map():
 		# проверим, нет ли в зарисовках уже открытых частей карты,
 		# и, если есть, перенесём зарисовку на карту
 		game.show_part_of_map(mode="copybook")
+		
 		_map = Text(game.mazeclass.maze_to_string(maze=game.show_part_of_map(),
 																row_start=1,
 																col_start=1,
@@ -241,13 +242,13 @@ def button_power(key):
 			elif key == "f":
 				import numpy as np
 			
-				if game.mazeclass.WAY_OUT in game.maze:
+				if game.mazeclass.objects["way_out"] in game.maze:
 					for r, c in game.mazeclass.walk:
-						game.maze[r, c] = game.mazeclass.PATH
+						game.maze[r, c] = game.mazeclass.objects["path"]
 
 				game.mazeclass.find_way(start_x=game.col, start_y=game.row)
 				for r, c in game.mazeclass.walk:
-					game.maze[r, c] = game.mazeclass.WAY_OUT
+					game.maze[r, c] = game.mazeclass.objects["way_out"]
 			'''
 
 			if game.chalk > 0:
